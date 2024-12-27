@@ -45,7 +45,7 @@ const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
   return (
     <div style={{ marginTop: '20px' }}>
       {/* Chat Messages */}
-      <div className='text-white border-2 p-2 overflow-y-scroll h-64'>
+      <div className='text-white bg-black border-2 p-2 overflow-y-scroll h-64'>
         {messages.map((msg, index) => (
           <div key={index}>{msg}</div>
         ))}

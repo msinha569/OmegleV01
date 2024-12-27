@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socket = io(`http://localhost:${process.env.PORT}`)
+const socket = io(proess.env.NEXT_PUBLIC_SOCKET_URL);
 
 socket.on('connect', () => {
   console.log("connected to server:",socket.id);

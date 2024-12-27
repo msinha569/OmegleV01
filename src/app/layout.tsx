@@ -1,8 +1,10 @@
+
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SocketProvider } from "@/helpers/useSocket";
 import { Toaster } from "react-hot-toast";
+import { WebRTC } from "./videochat/component/WebRTC";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,8 +33,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Toaster/>
-        <SocketProvider serverUrl={`http://localhost:${process.env.PORT}`}>
+        <SocketProvider serverUrl={process.env.NEXT_PUBLIC_SERVER_URL}>
+          <WebRTC>
         {children}
+        </WebRTC>
         </SocketProvider>
       </body>
     </html>
