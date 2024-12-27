@@ -3,7 +3,7 @@ import Messaging from './component/Messaging'
 import { useRTC } from './component/WebRTC'
 
 const Chat = () => {
- const { socket ,remoteStream, localStream, opponentId} = useRTC()
+ const { socket ,remoteStream, localStream, opponentId,status} = useRTC()
   return (
     <div>
       <div>

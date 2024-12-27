@@ -1,20 +1,19 @@
 'use client'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useSocket } from '../../../helpers/useSocket'
 
-const ContextRTC =  createContext({} as any)
+const ContextRTC = createContext({} as any)
 
 export const useRTC = () => useContext(ContextRTC)
 
-export const WebRTC = ({children}:any) => {
-    const { socket } = useSocket()
-    const [opponentId, setOpponentId] = useState<string | null>(null)
-    const [status, setStatus] = useState("waiting for a match...")
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-    const [role, setRole] = useState<"caller" | "callee" | "">("")
-    
-    
+export const WebRTC = ({ children }: any) => {
+  const { socket } = useSocket()
+  const [opponentId, setOpponentId] = useState<string | null>(null)
+  const [status, setStatus] = useState("waiting for a match...")
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [role, setRole] = useState<"caller" | "callee" | "">("")
+  
   // Ref to store the RTCPeerConnection instance
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
@@ -33,7 +32,7 @@ export const WebRTC = ({children}:any) => {
     }
   }, [])
 
-  // 2. Listen for 'matched' and 'message' events
+  // 2. Listen for 'matched', 'message', and 'peer-disconnected' events
   useEffect(() => {
     if (!socket) return
 
@@ -42,15 +41,65 @@ export const WebRTC = ({children}:any) => {
       console.log("Matched with opponent:", opponentId, "as", role)
       setOpponentId(opponentId)
       setRole(role)
-      setStatus(` I am ${socket.id} Connected successfully with client ${opponentId} as ${role}`)
+      setStatus(`I am ${socket.id}. Connected successfully with client ${opponentId} as ${role}`)
+      setMessages([]) // Clear previous messages
     }
+
+    // Handle 'message' event
+    const handleMessage = (data: any) => {
+      console.log("Message from:", data.from);
+      console.log("Message data:", data);
+      console.log("My socket ID:", socket.id);
+      
+      if (data.from === opponentId) { // Correct condition
+        console.log("Received message:", data.message)
+        setMessages((prev) => [...prev, `Peer: ${data.message}`])
+      }
+    }
+
+    // Handle 'peer-disconnected' event
+    const handlePeerDisconnected = () => {
+      console.log("Peer has disconnected.")
+      setStatus("Your peer has disconnected. Waiting for a new match...")
+      setOpponentId(null)
+      setRemoteStream(null)
+      setMessages((prev) => [...prev, "Peer has disconnected."])
+      // Close existing RTCPeerConnection
+      if (pcRef.current) {
+        pcRef.current.close()
+        pcRef.current = null
+        console.log('RTCPeerConnection closed due to peer disconnection')
+      }
+    }
+
     socket.on('matched', handleMatched)
+    socket.on('message', handleMessage)
+    socket.on('peer-disconnected', handlePeerDisconnected)
+   // socket.on('disconnect', () => {window.location.reload()})
 
     return () => {
       socket.off('matched', handleMatched)
+      socket.off('message', handleMessage)
+     socket.off('peer-disconnected', handlePeerDisconnected)
     }
-  }, [socket])
+  }, [socket, opponentId])
 
+  const [reloadTriggered, setReloadTriggered] = useState(false);
+
+  useEffect(() => {
+    if (localStream && !remoteStream && !reloadTriggered) {
+      const timeout = setTimeout(() => {
+        if (!remoteStream) {
+          setReloadTriggered(true);
+          window.location.reload();
+        }
+      }, 5000);
+  
+      // Cleanup timeout on component unmount or if remoteStream becomes available
+      return () => clearTimeout(timeout);
+    }
+  }, [localStream, remoteStream, reloadTriggered]);
+  
   // 3. Initialize RTCPeerConnection and set up event listeners
   useEffect(() => {
     if (!socket || !opponentId || !role) return
@@ -60,6 +109,7 @@ export const WebRTC = ({children}:any) => {
       const pc = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' }, // Google's public STUN server
+          // Add TURN servers here if available
         ]
       })
       pcRef.current = pc
@@ -79,7 +129,7 @@ export const WebRTC = ({children}:any) => {
         }
       }
 
-      // Listen for ICE candidates from peer
+      // Listen for incoming ICE candidates
       socket.on('ice-candidate', async ({ candidate }: any) => {
         if (candidate) {
           try {
@@ -208,10 +258,23 @@ export const WebRTC = ({children}:any) => {
     pendingOfferRef.current = null
   }, [localStream, role, socket, opponentId])
 
+  // 5. Messaging Function
+  const [message, setMessage] = useState("")
+  const [messages, setMessages] = useState<any[]>([])
 
-  console.log(remoteStream);
-  
-  // Clean up RTCPeerConnection on component unmount
+  const sendMessages = useCallback(() => {
+    if (!message.trim() || !opponentId) return
+    const msg = message.trim()
+    setMessage("")
+    console.log("Sending message:", msg)
+    socket.emit("message", { to: opponentId, message: msg }, () => {
+      console.log("Message sent:", msg)
+      // Optionally, add the sent message to the chat
+      setMessages((prev) => [...prev, `Me: ${msg}`])
+    })
+  }, [message, opponentId, socket])
+
+  // 6. Clean up RTCPeerConnection on component unmount
   useEffect(() => {
     return () => {
       if (pcRef.current) {
@@ -222,12 +285,11 @@ export const WebRTC = ({children}:any) => {
     }
   }, [])
 
-
-
   return (
-      <ContextRTC.Provider value={{localStream, remoteStream,socket,opponentId,status}}>
+    <ContextRTC.Provider value={{ localStream, remoteStream, socket, opponentId, status }}>
       {children}
-      </ContextRTC.Provider>
+    </ContextRTC.Provider>
   )
 }
 
+export default WebRTC
