@@ -1,11 +1,10 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useSocket } from '../../helpers/useSocket'
+import Messaging from './component/Messaging'
 
 const Chat = () => {
-  const { socket, isConnected } = useSocket()
-  const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState<any[]>([])
+  const { socket } = useSocket()
   const [opponentId, setOpponentId] = useState<string | null>(null)
   const [status, setStatus] = useState("waiting for a match...")
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
@@ -41,28 +40,10 @@ const Chat = () => {
       setRole(role)
       setStatus(`Connected successfully with client ${opponentId} as ${role}`)
     }
-
-    // Handle 'message' event
-    const handleMessage = (data: any) => {
-      console.log(data.from);
-      console.log(data);
-      console.log(socket.id);
-      
-      if (data.to === socket.id) {
-        console.log("Received message:", data.message)
-        console.log("Received message:")
-        setMessages((prev) => [...prev, data.message])
-        console.log(messages);
-        
-      }
-    }
-
     socket.on('matched', handleMatched)
-    socket.on('message', handleMessage)
 
     return () => {
       socket.off('matched', handleMatched)
-      socket.off('message', handleMessage)
     }
   }, [socket])
 
@@ -223,18 +204,6 @@ const Chat = () => {
     pendingOfferRef.current = null
   }, [localStream, role, socket, opponentId])
 
-  // 5. Messaging Function
-  const sendMessages = () => {
-    if (!message.trim() || !opponentId) return
-    const localmsg = message.trim()
-    setMessage("")
-    console.log("Sending message:", localmsg)
-    socket.emit("message", { to: opponentId, message: localmsg }, () => {
-      console.log("Message sent:", localmsg)
-      // Optionally, add the sent message to the chat
-      setMessages((prev) => [...prev, `Me: ${localmsg}`])
-    })
-  }
 
   // Clean up RTCPeerConnection on component unmount
   useEffect(() => {
@@ -249,16 +218,12 @@ const Chat = () => {
 
   return (
     <div>
-      <h2>Chat Here</h2>
-      <p>{isConnected ? "Connected" : "Disconnected"}</p>
-      <p>{status}, and I am {socket && socket.id}</p>
-
-      {/* Chat Messages */}
-      <div className='text-white border-2 p-2 overflow-y-scroll h-64'>
-        {messages.map((msg, index) => (
-          <div key={index}>{msg}</div>
-        ))}
+      <div>
+        {status}
       </div>
+     <div>
+     <Messaging socket={socket} opponentId={opponentId} />
+     </div>
 
       {/* Video Streams */}
       <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
@@ -291,30 +256,6 @@ const Chat = () => {
         />
       </div>
 
-      {/* Message Input */}
-      <div style={{ marginTop: '10px' }}>
-        <input
-          value={message}
-          className='p-2 text-black'
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              sendMessages()
-            }
-          }}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder='Type a message'
-          type='text'
-          style={{ width: '80%', padding: '10px' }}
-        />
-        <button
-          className='p-2 bg-green-400 text-white'
-          onClick={sendMessages}
-          style={{ padding: '10px 20px', marginLeft: '10px' }}
-        >
-          Send
-        </button>
-      </div>
     </div>
   )
 }

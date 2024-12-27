@@ -10,7 +10,7 @@ export const socketHandler = (io) => {
             const {to, message} = data
             console.log("message:",data);
             console.log("to:",to);
-            io.to(to).emit('message',{from: socket.id, message})
+            io.to(to).emit('message',{to, message})
         })
 
         socket.on('disconnect',() => {
