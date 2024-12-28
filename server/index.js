@@ -36,7 +36,7 @@ app.prepare().then(() => {
         res.status(500).send("Internal Server Error")
     })
     
-    httpServer.listen(port, () => {
+    httpServer.listen(port,'0.0.0.0', () => {
         console.log(`Server is listening on port ${port}`);
     })
 })
