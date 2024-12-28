@@ -63,8 +63,6 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [role, setRole] = useState<'caller' | 'callee' | ''>('');
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -93,22 +91,14 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
       setOpponentId(opponentId);
       setRole(role);
       setStatus(`I am ${socket.id}. Connected successfully with client ${opponentId} as ${role}`);
-      setMessages([]); // Clear previous messages
     };
 
-    const handleMessage = (data: MessageEvent) => {
-      console.log('Message from:', data.from);
-      if (data.from === opponentId) {
-        setMessages((prev) => [...prev, `Peer: ${data.message}`]);
-      }
-    };
 
     const handlePeerDisconnected = () => {
       console.log('Peer has disconnected.');
       setStatus('Your peer has disconnected. Waiting for a new match...');
       setOpponentId(null);
       setRemoteStream(null);
-      setMessages((prev) => [...prev, 'Peer has disconnected.']);
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
@@ -117,12 +107,10 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
     };
 
     socket.on('matched', handleMatched);
-    socket.on('message', handleMessage);
     socket.on('peer-disconnected', handlePeerDisconnected);
 
     return () => {
       socket.off('matched', handleMatched);
-      socket.off('message', handleMessage);
       socket.off('peer-disconnected', handlePeerDisconnected);
     };
   }, [socket, opponentId]);
@@ -277,14 +265,7 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
     pendingOfferRef.current = null;
   }, [localStream, role, socket, opponentId]);
 
-  const sendMessages = useCallback(() => {
-    if (!message.trim() || !opponentId) return;
-    const msg = message.trim();
-    setMessage('');
-    socket.emit('message', { to: opponentId, message: msg }, () => {
-      setMessages((prev) => [...prev, `Me: ${msg}`]);
-    });
-  }, [message, opponentId, socket]);
+  
 
   useEffect(() => {
     return () => {

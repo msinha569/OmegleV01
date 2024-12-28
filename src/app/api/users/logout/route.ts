@@ -1,5 +1,5 @@
 import {connect} from '@/dbConfig/dbConfig'
-import { NextResponse,NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 connect()
 

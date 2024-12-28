@@ -20,13 +20,10 @@ export const useSocket = () => {
         setSocket(newSocket)
 
         newSocket.on('connect',() => {
-            console.log("socket is this",newSocket);
             
-            console.log("connection established with:",newSocket.id);
             setIsConnected(true)
         })
         newSocket.on('disconnect',() => {
-            console.log("disconnected:",newSocket.id);
             setIsConnected(false)
         })
 
