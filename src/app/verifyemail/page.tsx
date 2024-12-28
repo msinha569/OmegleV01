@@ -1,41 +1,23 @@
 'use client'
 
-import axios from 'axios'
+import { Suspense } from 'react'
+import VerifyEmailLogic from './components/VerifyEmailLogic'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
 
 export default function VerifyEmailPage() {
-    const [token, setToken] = useState<string>("")
-    const [verified, setVerified] = useState(false)
-    const [error, setError] = useState(false)
-    const searchParams = useSearchParams() // Access query parameters
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <VerifyEmailContent />
+        </Suspense>
+    )
+}
 
-    const verifyUserEmail = async (token: string) => {
-        try {
-            await axios.post("/api/users/verifyemail", { token })
-            setVerified(true)
-            setError(false)
-        } catch (err) {
-            setError(true)
-            console.error(err || "An error occurred during verification")
-        }
+function VerifyEmailContent() {
+    const { token, verified, error } = VerifyEmailLogic()
+
+    if (!token) {
+        return <div>Loading...</div> // Display this until token is available
     }
-
-    useEffect(() => {
-        setError(false)
-        const urlToken = searchParams.get('token') // Get the `token` query parameter
-        if (urlToken) {
-            setToken(urlToken) // Set the token
-        }
-    }, [searchParams])
-
-    useEffect(() => {
-        setError(false)
-        if (token) {
-            verifyUserEmail(token) // Call API only if token is set
-        }
-    }, [token])
 
     return (
         <div className="flex flex-col justify-center items-center min-h-screen p-2">
