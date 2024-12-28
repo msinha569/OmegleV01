@@ -1,5 +1,5 @@
 'use client'
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
@@ -24,9 +24,14 @@ export default function SignupPage() {
             console.log(response.data);
             router.push('/login')
             setloading(false)
-        } catch (error:any) {
+        } catch (error) {
             console.log(error);
-            toast.error(error.response.data.error || "something unexpected happened")
+            if (error instanceof AxiosError){
+              const errorMessage = error.response?.data?.error || "something unexpected happened"
+              toast.error(errorMessage)
+            }else{
+              toast.error("something unexpected happened")
+            }
             setloading(false)
         }
     }

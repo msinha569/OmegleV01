@@ -1,10 +1,15 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react'
+import { Socket } from 'socket.io-client'
 
 interface MessagingProps {
-  socket: any
+  socket: Socket | null
   opponentId: string | null
 }
+interface MessageData {
+    to: string;
+    message: string;
+  }
 
 const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
   const [message, setMessage] = useState("")
@@ -14,7 +19,7 @@ const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
   useEffect(() => {
     if (!socket) return
 
-    const handleMessage = (data: any) => {
+    const handleMessage = (data: MessageData) => {
       // Only add messages that are intended for this user
       
       if (data.to === socket.id) {
@@ -36,7 +41,7 @@ const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
     setMessage("")
 
     // Send the message via socket
-    socket.emit("message", { to: opponentId, message: localmsg }, () => {
+    socket && socket.emit("message", { to: opponentId, message: localmsg }, () => {
       // Once the server confirms sending, show it in our local chat
       setMessages(prev => [...prev, `Me: ${localmsg}`])
     })

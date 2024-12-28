@@ -1,91 +1,133 @@
-'use client'
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
-import { useSocket } from '../../../helpers/useSocket'
+'use client';
 
-const ContextRTC = createContext({} as any)
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
+import { Socket } from 'socket.io-client';
+import { useSocket } from '../../../helpers/useSocket';
 
-export const useRTC = () => useContext(ContextRTC)
+interface WebRTCProps {
+  children: ReactNode;
+}
 
-export const WebRTC = ({ children }: any) => {
-  const { socket } = useSocket()
-  const [opponentId, setOpponentId] = useState<string | null>(null)
-  const [status, setStatus] = useState("waiting for a match...")
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-  const [role, setRole] = useState<"caller" | "callee" | "">("")
-  
-  // Ref to store the RTCPeerConnection instance
-  const pcRef = useRef<RTCPeerConnection | null>(null)
+interface MatchedEvent {
+  opponentId: string;
+  role: 'caller' | 'callee';
+}
 
-  // Ref to store a pending offer if callee hasn't got localStream yet
-  const pendingOfferRef = useRef<any>(null)
+interface MessageEvent {
+  from: string;
+  message: string;
+}
+
+interface IceCandidateEvent {
+  candidate: RTCIceCandidateInit;
+}
+
+interface OfferEvent {
+  offer: RTCSessionDescriptionInit;
+}
+
+interface AnswerEvent {
+  answer: RTCSessionDescriptionInit;
+}
+
+interface RTCContext {
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  socket: Socket | null;
+  opponentId: string | null;
+  status: string;
+}
+
+const ContextRTC = createContext<RTCContext>({
+  localStream: null,
+  remoteStream: null,
+  socket: null,
+  opponentId: null,
+  status: '',
+});
+
+export const useRTC = () => useContext(ContextRTC);
+
+export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
+  const { socket } = useSocket();
+  const [opponentId, setOpponentId] = useState<string | null>(null);
+  const [status, setStatus] = useState('waiting for a match...');
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [role, setRole] = useState<'caller' | 'callee' | ''>('');
+  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<string[]>([]);
+
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+
+  const [reloadTriggered, setReloadTriggered] = useState(false);
 
   // 1. Acquire local media
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
         .then((stream) => {
-          console.log('Local stream acquired')
-          setLocalStream(stream)
+          console.log('Local stream acquired');
+          setLocalStream(stream);
         })
-        .catch((err) => console.error('Error accessing media devices:', err))
+        .catch((err) => console.error('Error accessing media devices:', err));
     }
-  }, [])
+  }, []);
 
-  // 2. Listen for 'matched', 'message', and 'peer-disconnected' events
+  // 2. Listen for events: 'matched', 'message', and 'peer-disconnected'
   useEffect(() => {
-    if (!socket) return
+    if (!socket) return;
 
-    // Handle 'matched' event
-    const handleMatched = ({ opponentId, role }: any) => {
-      console.log("Matched with opponent:", opponentId, "as", role)
-      setOpponentId(opponentId)
-      setRole(role)
-      setStatus(`I am ${socket.id}. Connected successfully with client ${opponentId} as ${role}`)
-      setMessages([]) // Clear previous messages
-    }
+    const handleMatched = ({ opponentId, role }: MatchedEvent) => {
+      console.log('Matched with opponent:', opponentId, 'as', role);
+      setOpponentId(opponentId);
+      setRole(role);
+      setStatus(`I am ${socket.id}. Connected successfully with client ${opponentId} as ${role}`);
+      setMessages([]); // Clear previous messages
+    };
 
-    // Handle 'message' event
-    const handleMessage = (data: any) => {
-      console.log("Message from:", data.from);
-      console.log("Message data:", data);
-      console.log("My socket ID:", socket.id);
-      
-      if (data.from === opponentId) { // Correct condition
-        console.log("Received message:", data.message)
-        setMessages((prev) => [...prev, `Peer: ${data.message}`])
+    const handleMessage = (data: MessageEvent) => {
+      console.log('Message from:', data.from);
+      if (data.from === opponentId) {
+        setMessages((prev) => [...prev, `Peer: ${data.message}`]);
       }
-    }
+    };
 
-    // Handle 'peer-disconnected' event
     const handlePeerDisconnected = () => {
-      console.log("Peer has disconnected.")
-      setStatus("Your peer has disconnected. Waiting for a new match...")
-      setOpponentId(null)
-      setRemoteStream(null)
-      setMessages((prev) => [...prev, "Peer has disconnected."])
-      // Close existing RTCPeerConnection
+      console.log('Peer has disconnected.');
+      setStatus('Your peer has disconnected. Waiting for a new match...');
+      setOpponentId(null);
+      setRemoteStream(null);
+      setMessages((prev) => [...prev, 'Peer has disconnected.']);
       if (pcRef.current) {
-        pcRef.current.close()
-        pcRef.current = null
-        console.log('RTCPeerConnection closed due to peer disconnection')
+        pcRef.current.close();
+        pcRef.current = null;
+        console.log('RTCPeerConnection closed due to peer disconnection');
       }
-    }
+    };
 
-    socket.on('matched', handleMatched)
-    socket.on('message', handleMessage)
-    socket.on('peer-disconnected', handlePeerDisconnected)
-   // socket.on('disconnect', () => {window.location.reload()})
+    socket.on('matched', handleMatched);
+    socket.on('message', handleMessage);
+    socket.on('peer-disconnected', handlePeerDisconnected);
 
     return () => {
-      socket.off('matched', handleMatched)
-      socket.off('message', handleMessage)
-     socket.off('peer-disconnected', handlePeerDisconnected)
-    }
-  }, [socket, opponentId])
+      socket.off('matched', handleMatched);
+      socket.off('message', handleMessage);
+      socket.off('peer-disconnected', handlePeerDisconnected);
+    };
+  }, [socket, opponentId]);
 
-  const [reloadTriggered, setReloadTriggered] = useState(false);
-
+  // 3. Reload if no remote stream
   useEffect(() => {
     if (localStream && !remoteStream && !reloadTriggered) {
       const timeout = setTimeout(() => {
@@ -94,202 +136,170 @@ export const WebRTC = ({ children }: any) => {
           window.location.reload();
         }
       }, 5000);
-  
-      // Cleanup timeout on component unmount or if remoteStream becomes available
+
       return () => clearTimeout(timeout);
     }
   }, [localStream, remoteStream, reloadTriggered]);
-  
-  // 3. Initialize RTCPeerConnection and set up event listeners
-  useEffect(() => {
-    if (!socket || !opponentId || !role) return
 
-    // Initialize RTCPeerConnection if not already
+  // 4. Initialize RTCPeerConnection
+  useEffect(() => {
+    if (!socket || !opponentId || !role) return;
+
     if (!pcRef.current) {
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }, // Google's public STUN server
-          // Add TURN servers here if available
-        ]
-      })
-      pcRef.current = pc
-      console.log('RTCPeerConnection created')
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+      pcRef.current = pc;
 
-      // Handle incoming remote tracks
       pc.ontrack = (event) => {
-        console.log("Received remote stream:", event.streams[0])
-        setRemoteStream(event.streams[0])
-      }
+        console.log('Received remote stream:', event.streams[0]);
+        setRemoteStream(event.streams[0]);
+      };
 
-      // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          socket.emit('ice-candidate', { candidate: event.candidate })
-          console.log('Sent ICE candidate')
+          socket.emit('ice-candidate', { candidate: event.candidate });
+          console.log('Sent ICE candidate');
         }
-      }
+      };
 
-      // Listen for incoming ICE candidates
-      socket.on('ice-candidate', async ({ candidate }: any) => {
+      socket.on('ice-candidate', async ({ candidate }: IceCandidateEvent) => {
         if (candidate) {
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate))
-            console.log('Added received ICE candidate')
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('Added received ICE candidate');
           } catch (err) {
-            console.error('Error adding received ICE candidate:', err)
+            console.error('Error adding received ICE candidate:', err);
           }
         }
-      })
+      });
     }
 
-    const peerConnection = pcRef.current
+    const peerConnection = pcRef.current;
 
     if (role === 'caller') {
-      // Caller: add local tracks and create/send offer
       if (localStream) {
-        localStream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, localStream)
-        })
-        console.log('Added local tracks to peer connection')
-      } else {
-        console.warn('Local stream not available for caller')
+        localStream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, localStream);
+        });
+        console.log('Added local tracks to peer connection');
       }
 
-      // Create and send offer
       const createAndSendOffer = async () => {
         try {
-          const offer = await peerConnection.createOffer()
-          await peerConnection.setLocalDescription(offer)
-          socket.emit('offer', { offer })
-          console.log('Offer created and sent')
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+          socket.emit('offer', { offer });
+          console.log('Offer created and sent');
         } catch (err) {
-          console.error('Error creating/sending offer:', err)
+          console.error('Error creating/sending offer:', err);
         }
-      }
+      };
 
-      createAndSendOffer()
+      createAndSendOffer();
 
-      // Listen for 'answer' event
-      const handleAnswer = async ({ answer }: any) => {
+      const handleAnswer = async ({ answer }: AnswerEvent) => {
         try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
-          console.log('Remote description set with answer')
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log('Remote description set with answer');
         } catch (err) {
-          console.error('Error setting remote description with answer:', err)
+          console.error('Error setting remote description with answer:', err);
         }
-      }
+      };
 
-      socket.on('answer', handleAnswer)
+      socket.on('answer', handleAnswer);
 
       return () => {
-        socket.off('answer', handleAnswer)
-      }
-
+        socket.off('answer', handleAnswer);
+      };
     } else if (role === 'callee') {
-      // Callee: listen for 'offer' and respond with 'answer'
-      const handleOffer = async ({ offer }: any) => {
+      const handleOffer = async ({ offer }: OfferEvent) => {
         try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-          console.log('Remote description set with offer')
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+          console.log('Remote description set with offer');
 
           if (localStream) {
-            localStream.getTracks().forEach(track => {
-              peerConnection.addTrack(track, localStream)
-            })
-            console.log('Added local tracks to peer connection')
+            localStream.getTracks().forEach((track) => {
+              peerConnection.addTrack(track, localStream);
+            });
           } else {
-            console.warn('Local stream not available yet for callee to add tracks')
-            pendingOfferRef.current = offer
-            return
+            pendingOfferRef.current = offer;
+            return;
           }
 
-          const answer = await peerConnection.createAnswer()
-          await peerConnection.setLocalDescription(answer)
-          socket.emit('answer', { answer })
-          console.log('Answer created and sent')
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          socket.emit('answer', { answer });
+          console.log('Answer created and sent');
         } catch (err) {
-          console.error('Error handling offer:', err)
+          console.error('Error handling offer:', err);
         }
-      }
+      };
 
-      // Listen for 'offer' event
-      socket.on('offer', handleOffer)
+      socket.on('offer', handleOffer);
 
-      // If a pending offer exists (received before localStream was ready), handle it now
       if (pendingOfferRef.current && localStream) {
-        handleOffer({ offer: pendingOfferRef.current })
-        pendingOfferRef.current = null
+        handleOffer({ offer: pendingOfferRef.current });
+        pendingOfferRef.current = null;
       }
 
       return () => {
-        socket.off('offer', handleOffer)
-      }
+        socket.off('offer', handleOffer);
+      };
     }
+  }, [socket, opponentId, role, localStream]);
 
-  }, [socket, opponentId, role, localStream])
-
-  // 4. Handle pending offer when localStream becomes available for callee
+  // Handle pending offer for callee
   useEffect(() => {
-    if (role !== 'callee' || !pendingOfferRef.current || !localStream || !pcRef.current) return
+    if (role !== 'callee' || !pendingOfferRef.current || !localStream || !pcRef.current) return;
 
-    const peerConnection = pcRef.current
+    const peerConnection = pcRef.current;
 
     const handlePendingOffer = async () => {
       try {
-        const offer = pendingOfferRef.current
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-        console.log('Remote description set with pending offer')
+        const offer = pendingOfferRef.current;
+        if (offer)
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
 
-        localStream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, localStream)
-        })
-        console.log('Added local tracks to peer connection after pending offer')
+        localStream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, localStream);
+        });
 
-        const answer = await peerConnection.createAnswer()
-        await peerConnection.setLocalDescription(answer)
-        socket.emit('answer', { answer })
-        console.log('Answer created and sent after pending offer')
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', { answer });
       } catch (err) {
-        console.error('Error handling pending offer:', err)
+        console.error('Error handling pending offer:', err);
       }
-    }
+    };
 
-    handlePendingOffer()
-    pendingOfferRef.current = null
-  }, [localStream, role, socket, opponentId])
-
-  // 5. Messaging Function
-  const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState<any[]>([])
+    handlePendingOffer();
+    pendingOfferRef.current = null;
+  }, [localStream, role, socket, opponentId]);
 
   const sendMessages = useCallback(() => {
-    if (!message.trim() || !opponentId) return
-    const msg = message.trim()
-    setMessage("")
-    console.log("Sending message:", msg)
-    socket.emit("message", { to: opponentId, message: msg }, () => {
-      console.log("Message sent:", msg)
-      // Optionally, add the sent message to the chat
-      setMessages((prev) => [...prev, `Me: ${msg}`])
-    })
-  }, [message, opponentId, socket])
+    if (!message.trim() || !opponentId) return;
+    const msg = message.trim();
+    setMessage('');
+    socket.emit('message', { to: opponentId, message: msg }, () => {
+      setMessages((prev) => [...prev, `Me: ${msg}`]);
+    });
+  }, [message, opponentId, socket]);
 
-  // 6. Clean up RTCPeerConnection on component unmount
   useEffect(() => {
     return () => {
       if (pcRef.current) {
-        pcRef.current.close()
-        pcRef.current = null
-        console.log('RTCPeerConnection closed')
+        pcRef.current.close();
+        pcRef.current = null;
       }
-    }
-  }, [])
+    };
+  }, []);
 
   return (
     <ContextRTC.Provider value={{ localStream, remoteStream, socket, opponentId, status }}>
       {children}
     </ContextRTC.Provider>
-  )
-}
+  );
+};
 
-export default WebRTC
+export default WebRTC;

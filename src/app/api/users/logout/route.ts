@@ -3,7 +3,7 @@ import { NextResponse,NextRequest } from 'next/server'
 
 connect()
 
-export async function POST(request: NextRequest){
+export async function POST(){
     console.log("here");
     
     try {
@@ -17,9 +17,9 @@ export async function POST(request: NextRequest){
         })
         return response
         
-    } catch (error:any) {
+    } catch (error) {
         console.log(error);
-        
-        return NextResponse.json({error: error.message},{status:500})
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        return NextResponse.json({error: errorMessage},{status:500})
     }
 }

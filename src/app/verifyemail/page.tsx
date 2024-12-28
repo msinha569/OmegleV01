@@ -16,9 +16,9 @@ export default function VerifyEmailPage() {
             await axios.post("/api/users/verifyemail", { token })
             setVerified(true)
             setError(false)
-        } catch (err: any) {
+        } catch (err) {
             setError(true)
-            console.error(err.response?.data || "An error occurred during verification")
+            console.error(err || "An error occurred during verification")
         }
     }
 

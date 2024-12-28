@@ -1,66 +1,72 @@
 import User from '@/models/userModel';
-import  nodemailer from 'nodemailer'
-import bcryptjs from 'bcryptjs'
+import nodemailer, { Transporter } from 'nodemailer';
+import bcryptjs from 'bcryptjs';
 
-interface mail {
-    email: string,
-    emailType: "VERIFY" | "RESET",
-    userId?: any
+interface MailOptions {
+  email: string;
+  emailType: "VERIFY" | "RESET";
+  userId?: any;
 }
 
+export const sendEmail = async ({ email, emailType, userId }: MailOptions): Promise<nodemailer.SentMessageInfo> => {
+  try {
+    // Hash token for verification or reset purposes
+    const hashedToken = userId
+      ? await bcryptjs.hash(userId.toString(), 10)
+      : await bcryptjs.hash(email, 10);
 
-export const sendEmail = async ({email, emailType, userId}:mail) => {
-try {
-
-    const hashedToken = userId ? await bcryptjs.hash(userId.toString(), 10) :  await bcryptjs.hash(email, 10)
-
-    if(emailType==="VERIFY"){
-        console.log("verification ongoing");
-        
-        await User.findByIdAndUpdate(userId,
-            {
-                verifyToken: hashedToken,
-                verifyTokenExpiry: Date.now() + 3600000
-            }
-        )
-    } else if(emailType==="RESET"){
-        console.log("reset ongoing");
-        
-        await User.findOneAndUpdate({email},
-            {
-                forgotPasswordToken: hashedToken,
-                forgotPasswordTokenExpiry: Date.now() + 36000
-            }
-        )
-        
+    // Update the database based on the email type
+    if (emailType === "VERIFY") {
+      console.log("Verification email preparation ongoing...");
+      await User.findByIdAndUpdate(userId, {
+        verifyToken: hashedToken,
+        verifyTokenExpiry: Date.now() + 3600000, // 1 hour
+      });
+    } else if (emailType === "RESET") {
+      console.log("Password reset email preparation ongoing...");
+      await User.findOneAndUpdate({ email }, {
+        forgotPasswordToken: hashedToken,
+        forgotPasswordTokenExpiry: Date.now() + 3600000, // 1 hour
+      });
     }
 
-        
-        var transport = nodemailer.createTransport({
-            host: "sandbox.smtp.mailtrap.io",
-            port: 2525,
-            auth: {
-            user: process.env.MAILTRAP_USER,
-            pass: process.env.MAILTRAP_PASS
-            }
-        });
-        const verifyHTML = `<p>Click <a href="${process.env.DOMAIN}/verifyemail?token=${hashedToken}">here</a> to verify your email
-        or copy and paste the link below in your browser.<br>${process.env.DOMAIN}/verifyemail?token=${hashedToken}</p>`
+    // Create the transporter object
+    const transporter: Transporter = nodemailer.createTransport({
+      host: "sandbox.smtp.mailtrap.io",
+      port: 2525,
+      auth: {
+        user: process.env.MAILTRAP_USER || "",
+        pass: process.env.MAILTRAP_PASS || "",
+      },
+    });
 
-        const resetPassword = `<p>Click <a href="${process.env.DOMAIN}/resetpassword?token=${hashedToken}">here</a> to reset your password
-        or copy and paste the link below in your browser.<br>${process.env.DOMAIN}/resetpassword?token=${hashedToken}</p>`
+    // Generate the email HTML based on the email type
+    const verifyHTML = `
+      <p>Click <a href="${process.env.DOMAIN}/verifyemail?token=${hashedToken}">here</a> to verify your email
+      or copy and paste the link below into your browser.<br>${process.env.DOMAIN}/verifyemail?token=${hashedToken}</p>
+    `;
 
+    const resetPasswordHTML = `
+      <p>Click <a href="${process.env.DOMAIN}/resetpassword?token=${hashedToken}">here</a> to reset your password
+      or copy and paste the link below into your browser.<br>${process.env.DOMAIN}/resetpassword?token=${hashedToken}</p>
+    `;
 
-        const mailOptions = {
-            from: 'msinha569@gmail.com', // sender address
-            to: email, // list of receivers
-            subject:  emailType === "VERIFY" ? "Verify your email" : "Reset your password", // Subject line
-            html: emailType === "VERIFY"? verifyHTML : resetPassword,
-          }
+    // Configure mail options
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: 'msinha569@gmail.com', // Sender address
+      to: email, // Receiver email
+      subject: emailType === "VERIFY" ? "Verify your email" : "Reset your password", // Subject
+      html: emailType === "VERIFY" ? verifyHTML : resetPasswordHTML,
+    };
 
-        const mailResponse = await transport.sendMail(mailOptions)
-        return mailResponse
-    } catch (error:any) {
-        throw new Error(error.message)
+    // Send the email
+    const mailResponse = await transporter.sendMail(mailOptions);
+    return mailResponse;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    } else {
+      throw new Error("An unexpected error occurred while sending the email.");
     }
-}
+  }
+};
