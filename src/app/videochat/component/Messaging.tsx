@@ -41,16 +41,17 @@ const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
     setMessage("")
 
     // Send the message via socket
-    socket && socket.emit("message", { to: opponentId, message: localmsg }, () => {
+    if (socket){
+    socket.emit("message", { to: opponentId, message: localmsg }, () => {
       // Once the server confirms sending, show it in our local chat
       setMessages(prev => [...prev, `Me: ${localmsg}`])
-    })
+    })}
   }, [message, opponentId, socket])
 
   return (
-    <div style={{ marginTop: '20px' }}>
+    <div style={{ marginTop: '20px' }} className='space-y-3'>
       {/* Chat Messages */}
-      <div className='text-white bg-black border-2 p-2 overflow-y-scroll h-64'>
+      <div className='text-white bg-black border-2 p-2 overflow-y-scroll h-64 '>
         {messages.map((msg, index) => (
           <div key={index}>{msg}</div>
         ))}
@@ -80,6 +81,11 @@ const Messaging: React.FC<MessagingProps> = ({ socket, opponentId }) => {
           Send
         </button>
       </div>
+      <button
+        className='p-2 bg-red-400 text-white'
+        onClick={() => window.location.reload()}>
+            Reconnect
+        </button>
     </div>
   )
 }
