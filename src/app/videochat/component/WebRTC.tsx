@@ -1,30 +1,21 @@
 'use client';
 
 import {
-  createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
-  useCallback,
   ReactNode,
 } from 'react';
 import { Socket } from 'socket.io-client';
-import { useSocket } from '../../../helpers/useSocket';
+import { io } from "socket.io-client";
 
-interface WebRTCProps {
-  children: ReactNode;
-}
+
 
 interface MatchedEvent {
   opponentId: string;
   role: 'caller' | 'callee';
 }
 
-interface MessageEvent {
-  from: string;
-  message: string;
-}
 
 interface IceCandidateEvent {
   candidate: RTCIceCandidateInit;
@@ -38,31 +29,34 @@ interface AnswerEvent {
   answer: RTCSessionDescriptionInit;
 }
 
-interface RTCContext {
-  localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
-  socket: Socket | null;
-  opponentId: string | null;
-  status: string;
-}
 
-const ContextRTC = createContext<RTCContext>({
-  localStream: null,
-  remoteStream: null,
-  socket: null,
-  opponentId: null,
-  status: '',
-});
-
-export const useRTC = () => useContext(ContextRTC);
-
-export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
-  const { socket } = useSocket();
+export const WebRTC = () => {
   const [opponentId, setOpponentId] = useState<string | null>(null);
   const [status, setStatus] = useState('waiting for a match...');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [role, setRole] = useState<'caller' | 'callee' | ''>('');
+
+  //socket connection
+  const [socket, setSocket] = useState<Socket|null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL
+  useEffect(() => {
+      const newSocket = io(serverUrl)
+      setSocket(newSocket)
+
+      newSocket.on('connect',() => {
+          
+          setIsConnected(true)
+      })
+      newSocket.on('disconnect',() => {
+          setIsConnected(false)
+      })
+
+      return () => {
+          newSocket.disconnect()
+      }
+  },[serverUrl])
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
@@ -255,6 +249,7 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
 
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
+        if (socket)
         socket.emit('answer', { answer });
       } catch (err) {
         console.error('Error handling pending offer:', err);
@@ -266,21 +261,20 @@ export const WebRTC: React.FC<WebRTCProps> = ({ children }) => {
   }, [localStream, role, socket, opponentId]);
 
   
-
+  // cleaning up listeners
   useEffect(() => {
     return () => {
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
       }
+      if(localStream){
+        localStream.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
 
-  return (
-    <ContextRTC.Provider value={{ localStream, remoteStream, socket, opponentId, status }}>
-      {children}
-    </ContextRTC.Provider>
-  );
+return { localStream, remoteStream, socket, opponentId, status }
 };
 
 export default WebRTC;

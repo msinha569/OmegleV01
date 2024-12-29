@@ -39,4 +39,4 @@ app.prepare().then(() => {
     httpServer.listen(port,'0.0.0.0', () => {
         console.log(`Server is listening on port ${port}`);
     })
-})
+}) 

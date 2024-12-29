@@ -2,11 +2,18 @@
 
 import axios from "axios"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import toast from "react-hot-toast"
 
+export default function ResetPasswordPage(){
+    return(
+        <Suspense fallback={<div>loading...</div>}>
+            <ResetPassword />
+        </Suspense>
+    )
+}
 
-export default function ResetPassword(){
+ function ResetPassword(){
     const [pass1, setPass1] = useState("")
     const [pass2, setPass2] = useState("")
     const [error, setError] = useState(true)

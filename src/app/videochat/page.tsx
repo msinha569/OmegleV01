@@ -1,9 +1,8 @@
 'use client'
 import Messaging from './component/Messaging'
-import { useRTC } from './component/WebRTC'
-
+import WebRTC from './component/WebRTC'
 const Chat = () => {
- const { socket ,remoteStream, localStream, opponentId,status} = useRTC()
+ const { socket ,remoteStream, localStream, opponentId,status} = WebRTC()
   return (
     <div>
       <div>
