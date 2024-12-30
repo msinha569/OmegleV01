@@ -1,6 +1,9 @@
 'use client'
+import { useEffect } from 'react'
 import Messaging from './component/Messaging'
 import WebRTC from './component/WebRTC'
+
+
 const Chat = () => {
  const { socket ,remoteStream, localStream, opponentId,status} = WebRTC()
   return (

@@ -40,7 +40,7 @@ export const WebRTC = () => {
   //socket connection
   const [socket, setSocket] = useState<Socket|null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL
+  const serverUrl = "http://localhost:3003"
   useEffect(() => {
       const newSocket = io(serverUrl)
       setSocket(newSocket)
